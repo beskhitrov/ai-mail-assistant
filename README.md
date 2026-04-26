@@ -86,9 +86,8 @@
 
 ## Текущий статус разработки
 
-Репозиторий находится на этапе `feature1`: добавлен минимальный каркас
-FastAPI-приложения, конфигурация окружения, базовая структура пакетов и
-health-check endpoint.
+Репозиторий находится на этапе `feature2`: настроено минимальное
+FastAPI-приложение с отдельным health-check роутером `GET /health`.
 
 На этом шаге еще не реализованы:
 - анализ письма;
@@ -98,7 +97,7 @@ health-check endpoint.
 
 Эти части добавляются отдельными небольшими feature-ветками.
 
-## Локальный запуск feature1
+## Локальный запуск feature2
 
 Создайте виртуальное окружение и установите зависимости:
 
@@ -126,9 +125,11 @@ curl http://localhost:8000/health
 {"status":"ok"}
 ```
 
-## Проверка feature1
+## Проверка feature2
 
 ```bash
 pytest
+ruff check .
+mypy app tests
 python -c "from app.main import app; print(app.title)"
 ```
