@@ -51,3 +51,19 @@ def test_email_analyzer_uses_llm_client() -> None:
     assert response.email == email
     assert response.analysis.summary.startswith("Project update:")
     assert response.analysis.tasks[0].priority == Priority.MEDIUM
+
+
+def test_fake_llm_client_returns_empty_tasks_when_no_action_markers() -> None:
+    """Fake LLM should not invent tasks when the email has no task markers."""
+    email = EmailCreate(
+        sender="friend@example.com",
+        recipient="user@example.com",
+        subject="Weekend plans",
+        body="Just wanted to say hello.",
+    )
+
+    result = FakeLLMClient().analyze_email(email)
+
+    assert result.category == EmailCategory.OTHER
+    assert result.priority == Priority.MEDIUM
+    assert result.tasks == []
