@@ -1,7 +1,7 @@
 """Tests for SQLAlchemy database models."""
 
-from app.db.base import Base
 from app.db.models import Email, EmailAnalysis
+from app.db.base import Base
 
 
 def test_email_tables_are_registered_in_metadata() -> None:
