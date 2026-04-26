@@ -86,18 +86,16 @@
 
 ## Текущий статус разработки
 
-Репозиторий находится на этапе `feature4`: добавлены SQLAlchemy-модели
-`Email` и `EmailAnalysis`, а также Alembic-конфигурация с первой
-миграцией для PostgreSQL.
+Репозиторий находится на этапе `feature5`: добавлен endpoint
+`POST /api/v1/emails/analyze`, сервис анализа подключен к HTTP API, а
+результат сохраняется через репозиторий.
 
 На этом шаге еще не реализованы:
-- репозиторий сохранения письма и анализа;
-- endpoint `POST /api/v1/emails/analyze`;
 - Docker Compose.
 
 Эти части добавляются отдельными небольшими feature-ветками.
 
-## Локальный запуск feature4
+## Локальный запуск feature5
 
 Создайте виртуальное окружение и установите зависимости:
 
@@ -125,12 +123,65 @@ curl http://localhost:8000/health
 {"status":"ok"}
 ```
 
-## Проверка feature4
+## Анализ письма через API
+
+После запуска приложения можно отправить тестовое письмо:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/emails/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sender": "teacher@example.com",
+    "recipient": "student@example.com",
+    "subject": "Срочно подготовить отчет",
+    "body": "Нужно подготовить отчет по проекту."
+  }'
+```
+
+Endpoint возвращает структурированный результат анализа:
+
+```json
+{
+  "email": {
+    "sender": "teacher@example.com",
+    "recipient": "student@example.com",
+    "subject": "Срочно подготовить отчет",
+    "body": "Нужно подготовить отчет по проекту.",
+    "received_at": null
+  },
+  "analysis": {
+    "summary": "Срочно подготовить отчет: Нужно подготовить отчет по проекту.",
+    "category": "work",
+    "priority": "high",
+    "tasks": [
+      {
+        "title": "Нужно подготовить отчет по проекту",
+        "description": null,
+        "deadline": null,
+        "assignee": null,
+        "priority": "high"
+      }
+    ],
+    "entities": {
+      "people": [],
+      "organizations": [],
+      "dates": []
+    },
+    "draft_reply": "Здравствуйте! Спасибо за письмо. Я изучу информацию и вернусь с ответом."
+  }
+}
+```
+
+Важно: для реального запуска endpoint с сохранением нужен доступный
+PostgreSQL и примененная миграция Alembic. В тестах БД подменяется fake
+session, поэтому они не требуют живую базу.
+
+## Проверка feature5
 
 ```bash
 pytest
 ruff check .
-mypy app tests
+mypy app tests alembic
 alembic upgrade head --sql
 python -c "from app.main import app; print(app.title)"
 ```
@@ -182,3 +233,10 @@ alembic upgrade head --sql
 ```bash
 alembic upgrade head
 ```
+
+## Репозиторий сохранения
+
+`EmailRepository` отвечает за сохранение письма и результата анализа в
+одной транзакции. Роутер FastAPI не работает с ORM-моделями напрямую:
+он принимает Pydantic-схему, вызывает `EmailAnalyzer`, а затем передает
+данные в репозиторий.
