@@ -86,18 +86,19 @@
 
 ## Текущий статус разработки
 
-Репозиторий находится на этапе `feature2`: настроено минимальное
-FastAPI-приложение с отдельным health-check роутером `GET /health`.
+Репозиторий находится на этапе `feature3`: добавлены Pydantic-схемы
+письма и результата анализа, а также fake LLM-клиент для локальной
+разработки и тестов.
 
 На этом шаге еще не реализованы:
-- анализ письма;
 - сохранение данных в PostgreSQL;
 - Alembic-миграции;
+- endpoint `POST /api/v1/emails/analyze`;
 - Docker Compose.
 
 Эти части добавляются отдельными небольшими feature-ветками.
 
-## Локальный запуск feature2
+## Локальный запуск feature3
 
 Создайте виртуальное окружение и установите зависимости:
 
@@ -125,7 +126,7 @@ curl http://localhost:8000/health
 {"status":"ok"}
 ```
 
-## Проверка feature2
+## Проверка feature3
 
 ```bash
 pytest
@@ -133,3 +134,26 @@ ruff check .
 mypy app tests
 python -c "from app.main import app; print(app.title)"
 ```
+
+Проверить fake-анализатор можно отдельной командой:
+
+```bash
+python -c "from app.schemas import EmailCreate; from app.services import EmailAnalyzer; email = EmailCreate(sender='teacher@example.com', recipient='student@example.com', subject='Срочно подготовить отчет', body='Нужно подготовить отчет по проекту.'); print(EmailAnalyzer().analyze(email).analysis.model_dump())"
+```
+
+## Как работает fake LLM
+
+На этапе `feature3` внешний LLM API еще не вызывается. Вместо него
+используется `FakeLLMClient`, который по простым ключевым словам
+детерминированно возвращает:
+
+- `summary`;
+- `category`;
+- `priority`;
+- `tasks`;
+- `entities`;
+- `draft_reply`.
+
+Это позволяет тестировать бизнес-логику без API-ключей, сети и
+нестабильных внешних ответов. Реальный LLM-клиент можно будет добавить
+позже, не меняя сервис `EmailAnalyzer`.
