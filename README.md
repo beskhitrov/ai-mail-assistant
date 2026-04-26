@@ -83,3 +83,52 @@
 ### Контейнеризация
 - **Docker**
 - **Docker Compose**
+
+## Текущий статус разработки
+
+Репозиторий находится на этапе `feature1`: добавлен минимальный каркас
+FastAPI-приложения, конфигурация окружения, базовая структура пакетов и
+health-check endpoint.
+
+На этом шаге еще не реализованы:
+- анализ письма;
+- сохранение данных в PostgreSQL;
+- Alembic-миграции;
+- Docker Compose.
+
+Эти части добавляются отдельными небольшими feature-ветками.
+
+## Локальный запуск feature1
+
+Создайте виртуальное окружение и установите зависимости:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Запустите приложение:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Проверьте health-check:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Ожидаемый ответ:
+
+```json
+{"status":"ok"}
+```
+
+## Проверка feature1
+
+```bash
+pytest
+python -c "from app.main import app; print(app.title)"
+```
