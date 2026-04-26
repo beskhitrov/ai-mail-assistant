@@ -86,19 +86,18 @@
 
 ## Текущий статус разработки
 
-Репозиторий находится на этапе `feature3`: добавлены Pydantic-схемы
-письма и результата анализа, а также fake LLM-клиент для локальной
-разработки и тестов.
+Репозиторий находится на этапе `feature4`: добавлены SQLAlchemy-модели
+`Email` и `EmailAnalysis`, а также Alembic-конфигурация с первой
+миграцией для PostgreSQL.
 
 На этом шаге еще не реализованы:
-- сохранение данных в PostgreSQL;
-- Alembic-миграции;
+- репозиторий сохранения письма и анализа;
 - endpoint `POST /api/v1/emails/analyze`;
 - Docker Compose.
 
 Эти части добавляются отдельными небольшими feature-ветками.
 
-## Локальный запуск feature3
+## Локальный запуск feature4
 
 Создайте виртуальное окружение и установите зависимости:
 
@@ -126,12 +125,13 @@ curl http://localhost:8000/health
 {"status":"ok"}
 ```
 
-## Проверка feature3
+## Проверка feature4
 
 ```bash
 pytest
 ruff check .
 mypy app tests
+alembic upgrade head --sql
 python -c "from app.main import app; print(app.title)"
 ```
 
@@ -157,3 +157,28 @@ python -c "from app.schemas import EmailCreate; from app.services import EmailAn
 Это позволяет тестировать бизнес-логику без API-ключей, сети и
 нестабильных внешних ответов. Реальный LLM-клиент можно будет добавить
 позже, не меняя сервис `EmailAnalyzer`.
+
+## Модели базы данных
+
+На этапе `feature4` добавлены две таблицы:
+
+- `emails` — хранит исходное письмо: отправителя, получателя, тему,
+  текст письма и даты;
+- `email_analyses` — хранит результат анализа письма: summary,
+  category, priority, tasks, entities и draft reply.
+
+Связь между таблицами — один к одному: одно письмо имеет один результат
+анализа. Внешний ключ `email_analyses.email_id` ссылается на
+`emails.id` и удаляется каскадно вместе с письмом.
+
+Проверить SQL первой миграции без подключения к PostgreSQL:
+
+```bash
+alembic upgrade head --sql
+```
+
+Когда PostgreSQL будет запущен, применить миграции можно будет так:
+
+```bash
+alembic upgrade head
+```
