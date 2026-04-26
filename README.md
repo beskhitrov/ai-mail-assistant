@@ -83,3 +83,247 @@
 ### Контейнеризация
 - **Docker**
 - **Docker Compose**
+
+## Текущий статус разработки
+
+Репозиторий находится на этапе `feature7`: Sprint 1 MVP собран в
+воспроизводимый локальный сервис с Docker Compose, PostgreSQL,
+миграциями Alembic, API анализа письма и отчетом для защиты.
+
+На этом шаге реализованы основные требования первого спринта:
+
+- локальный запуск через Docker Compose;
+- `GET /health`;
+- `POST /api/v1/emails/analyze`;
+- анализ письма через fake LLM;
+- сохранение письма и результата анализа в PostgreSQL;
+- тесты ключевого сценария;
+- отчет `reports/sprint1.md`.
+
+Эти части добавляются отдельными небольшими feature-ветками.
+
+## Локальный запуск через Docker Compose
+
+Запустите backend и PostgreSQL:
+
+```bash
+docker compose up --build
+```
+
+При старте backend применяет миграции:
+
+```bash
+alembic upgrade head
+```
+
+После запуска API доступен на `http://localhost:8000`.
+
+Проверьте health-check:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Ожидаемый ответ:
+
+```json
+{"status":"ok"}
+```
+
+Остановить окружение:
+
+```bash
+docker compose down
+```
+
+Остановить окружение и удалить volume PostgreSQL:
+
+```bash
+docker compose down -v
+```
+
+## Локальный запуск без Docker
+
+Создайте виртуальное окружение и установите зависимости:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Запустите приложение:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Проверьте health-check:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Ожидаемый ответ:
+
+```json
+{"status":"ok"}
+```
+
+## Анализ письма через API
+
+После запуска приложения можно отправить тестовое письмо:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/emails/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sender": "teacher@example.com",
+    "recipient": "student@example.com",
+    "subject": "Срочно подготовить отчет",
+    "body": "Нужно подготовить отчет по проекту."
+  }'
+```
+
+Endpoint возвращает структурированный результат анализа:
+
+```json
+{
+  "email": {
+    "sender": "teacher@example.com",
+    "recipient": "student@example.com",
+    "subject": "Срочно подготовить отчет",
+    "body": "Нужно подготовить отчет по проекту.",
+    "received_at": null
+  },
+  "analysis": {
+    "summary": "Срочно подготовить отчет: Нужно подготовить отчет по проекту.",
+    "category": "work",
+    "priority": "high",
+    "tasks": [
+      {
+        "title": "Нужно подготовить отчет по проекту",
+        "description": null,
+        "deadline": null,
+        "assignee": null,
+        "priority": "high"
+      }
+    ],
+    "entities": {
+      "people": [],
+      "organizations": [],
+      "dates": []
+    },
+    "draft_reply": "Здравствуйте! Спасибо за письмо. Я изучу информацию и вернусь с ответом."
+  }
+}
+```
+
+Важно: для реального запуска endpoint с сохранением нужен доступный
+PostgreSQL и примененная миграция Alembic. В тестах БД подменяется fake
+session, поэтому они не требуют живую базу.
+
+Для локального запуска endpoint с сохранением нужен PostgreSQL, доступный
+по `DATABASE_URL`, и примененная миграция:
+
+```bash
+alembic upgrade head
+```
+
+## Проверка feature7
+
+```bash
+pytest
+ruff check .
+mypy app tests alembic
+alembic upgrade head --sql
+python -c "from app.main import app; print(app.title)"
+docker compose config
+```
+
+Проверить fake-анализатор можно отдельной командой:
+
+```bash
+python -c "from app.schemas import EmailCreate; from app.services import EmailAnalyzer; email = EmailCreate(sender='teacher@example.com', recipient='student@example.com', subject='Срочно подготовить отчет', body='Нужно подготовить отчет по проекту.'); print(EmailAnalyzer().analyze(email).analysis.model_dump())"
+```
+
+## Как работает fake LLM
+
+На этапе `feature3` внешний LLM API еще не вызывается. Вместо него
+используется `FakeLLMClient`, который по простым ключевым словам
+детерминированно возвращает:
+
+- `summary`;
+- `category`;
+- `priority`;
+- `tasks`;
+- `entities`;
+- `draft_reply`.
+
+Это позволяет тестировать бизнес-логику без API-ключей, сети и
+нестабильных внешних ответов. Реальный LLM-клиент можно будет добавить
+позже, не меняя сервис `EmailAnalyzer`.
+
+## Модели базы данных
+
+На этапе `feature4` добавлены две таблицы:
+
+- `emails` — хранит исходное письмо: отправителя, получателя, тему,
+  текст письма и даты;
+- `email_analyses` — хранит результат анализа письма: summary,
+  category, priority, tasks, entities и draft reply.
+
+Связь между таблицами — один к одному: одно письмо имеет один результат
+анализа. Внешний ключ `email_analyses.email_id` ссылается на
+`emails.id` и удаляется каскадно вместе с письмом.
+
+Проверить SQL первой миграции без подключения к PostgreSQL:
+
+```bash
+alembic upgrade head --sql
+```
+
+Когда PostgreSQL будет запущен, применить миграции можно будет так:
+
+```bash
+alembic upgrade head
+```
+
+## Репозиторий сохранения
+
+`EmailRepository` отвечает за сохранение письма и результата анализа в
+одной транзакции. Роутер FastAPI не работает с ORM-моделями напрямую:
+он принимает Pydantic-схему, вызывает `EmailAnalyzer`, а затем передает
+данные в репозиторий.
+
+## Тестовое покрытие
+
+На этапе `feature6` тесты проверяют:
+
+- `GET /health`;
+- валидацию входного письма;
+- fake LLM и извлечение задач;
+- сценарий без задач, где fake LLM не должен придумывать действия;
+- SQLAlchemy metadata и связь `Email` / `EmailAnalysis`;
+- сохранение письма и анализа через `EmailRepository`;
+- rollback и `RepositoryError` при ошибке сохранения;
+- успешный `POST /api/v1/emails/analyze`;
+- `422` для невалидного API payload;
+- `500` при ошибке сохранения анализа.
+
+Тесты не требуют реального LLM API, Telegram API или живой PostgreSQL.
+Для API-тестов используется dependency override и fake DB session.
+
+## Материалы для защиты
+
+Краткий отчет по первому спринту находится в
+`reports/sprint1.md`. В нем описаны идея проекта, архитектура,
+используемые библиотеки, endpoints, схема БД, роль LLM, ограничения MVP
+и план второго спринта.
+
+## Ограничения MVP
+
+- используется `FakeLLMClient`, а не реальный внешний LLM API;
+- Telegram-бот будет добавлен во втором спринте;
+- нет авторизации и пользовательского кабинета;
+- нет фоновых очередей и Redis, потому что для Sprint 1 они не нужны.
