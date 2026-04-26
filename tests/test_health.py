@@ -1,8 +1,15 @@
-"""Tests for health endpoint handler."""
+"""Tests for health endpoint."""
 
-from app.api.routes.health import health_check
+from fastapi.testclient import TestClient
+
+from app.main import app
 
 
 def test_health_check_returns_ok() -> None:
-    """Health handler should confirm that the service is running."""
-    assert health_check() == {"status": "ok"}
+    """Health endpoint should confirm that the service is running."""
+    client = TestClient(app)
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
