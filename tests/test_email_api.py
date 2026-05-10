@@ -7,9 +7,11 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api.deps import get_db
+from app.api.deps import get_db, get_llm_client
 from app.db.models import Email
 from app.main import app
+from app.schemas.email import EmailAnalysisResult, EmailCreate
+from app.services.llm_client import LLMClientError
 
 
 class FakeSession:
@@ -47,6 +49,19 @@ def override_get_db() -> Generator[FakeSession, None, None]:
 def override_failing_get_db() -> Generator[FakeSession, None, None]:
     """Return fake session that fails on commit."""
     yield FakeSession(fail_on_commit=True)
+
+
+class FailingLLMClient:
+    """Fake LLM client that simulates provider failure."""
+
+    def analyze_email(self, email: EmailCreate) -> EmailAnalysisResult:
+        """Raise provider error instead of returning analysis."""
+        raise LLMClientError("provider is unavailable")
+
+
+def override_failing_llm_client() -> FailingLLMClient:
+    """Return failing LLM client for API tests."""
+    return FailingLLMClient()
 
 
 @pytest.fixture
@@ -111,3 +126,24 @@ def test_analyze_email_endpoint_returns_500_when_save_fails(
 
     assert response.status_code == 500
     assert response.json() == {"detail": "Could not save email analysis"}
+
+
+def test_analyze_email_endpoint_returns_502_when_llm_fails(
+    client: TestClient,
+) -> None:
+    """Endpoint should return bad gateway when LLM provider fails."""
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_llm_client] = override_failing_llm_client
+
+    response = client.post(
+        "/api/v1/emails/analyze",
+        json={
+            "sender": "teacher@example.com",
+            "recipient": "student@example.com",
+            "subject": "Project report",
+            "body": "Please prepare the project report.",
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {"detail": "LLM provider failed to analyze email"}

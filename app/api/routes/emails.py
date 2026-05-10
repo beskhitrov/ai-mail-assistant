@@ -9,7 +9,7 @@ from app.api.deps import get_db, get_llm_client
 from app.repositories.email_repository import EmailRepository, RepositoryError
 from app.schemas.email import EmailAnalysisResponse, EmailCreate
 from app.services.email_analyzer import EmailAnalyzer
-from app.services.llm_client import LLMClient
+from app.services.llm_client import LLMClient, LLMClientError
 
 router = APIRouter(prefix="/api/v1/emails", tags=["emails"])
 
@@ -26,7 +26,14 @@ def analyze_email(
 ) -> EmailAnalysisResponse:
     """Analyze email, save input and analysis, then return structured result."""
     analyzer = EmailAnalyzer(llm_client)
-    response = analyzer.analyze(email)
+
+    try:
+        response = analyzer.analyze(email)
+    except LLMClientError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="LLM provider failed to analyze email",
+        ) from exc
 
     try:
         EmailRepository(db).save_email_with_analysis(email, response.analysis)
