@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-4o-mini"
+    redis_url: str = "redis://localhost:6379/0"
+    analysis_queue_name: str = "email-analysis"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
