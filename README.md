@@ -367,6 +367,18 @@ make down
 `make check` запускает тесты, ruff, mypy и проверку Docker Compose
 конфигурации.
 
+## CI
+
+Для проекта настроен GitHub Actions workflow `.github/workflows/ci.yml`.
+Он запускается на push в `dev`, `main`, `feature*` и на pull request в
+`dev` или `main`.
+
+CI выполняет:
+
+- установку зависимостей из `requirements.txt`;
+- `make check`;
+- `make alembic-sql`.
+
 ## Проверка проекта
 
 ```bash
