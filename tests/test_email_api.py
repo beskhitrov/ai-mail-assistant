@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api.deps import get_db, get_llm_client
+from app.api.deps import get_db, get_llm_client, get_queue
 from app.db.models import Email
 from app.main import app
 from app.schemas.email import EmailAnalysisResult, EmailCreate
@@ -62,6 +62,55 @@ class FailingLLMClient:
 def override_failing_llm_client() -> FailingLLMClient:
     """Return failing LLM client for API tests."""
     return FailingLLMClient()
+
+
+class FakeJob:
+    """Fake queue job."""
+
+    id = "job-123"
+
+
+class FakeQueue:
+    """Fake queue for async API tests."""
+
+    def __init__(self) -> None:
+        """Initialize fake queue state."""
+        self.job_result: dict[str, Any] | None = None
+
+    def enqueue(self, function_path: str, payload: dict[str, object]) -> FakeJob:
+        """Return fake job id for enqueue call."""
+        return FakeJob()
+
+    def fetch_job(self, job_id: str) -> Any | None:
+        """Return fake job by id."""
+        if job_id != "job-123":
+            return None
+        return FakeStatusJob(self.job_result)
+
+
+class FakeStatusJob:
+    """Fake RQ job for API status tests."""
+
+    id = "job-123"
+    exc_info = None
+
+    def __init__(self, result: dict[str, Any] | None = None) -> None:
+        """Initialize fake job result."""
+        self.result = result
+
+    def get_status(self, refresh: bool = True) -> str:
+        """Return fake status."""
+        if self.result is None:
+            return "queued"
+        return "finished"
+
+
+fake_queue = FakeQueue()
+
+
+def override_get_queue() -> FakeQueue:
+    """Return fake queue for API tests."""
+    return fake_queue
 
 
 @pytest.fixture
@@ -147,3 +196,49 @@ def test_analyze_email_endpoint_returns_502_when_llm_fails(
 
     assert response.status_code == 502
     assert response.json() == {"detail": "LLM provider failed to analyze email"}
+
+
+def test_analyze_email_async_endpoint_returns_job_id(client: TestClient) -> None:
+    """POST /api/v1/emails/analyze-async should enqueue analysis job."""
+    app.dependency_overrides[get_queue] = override_get_queue
+
+    response = client.post(
+        "/api/v1/emails/analyze-async",
+        json={
+            "sender": "teacher@example.com",
+            "recipient": "student@example.com",
+            "subject": "Project report",
+            "body": "Please prepare the project report.",
+        },
+    )
+
+    assert response.status_code == 202
+    assert response.json() == {"job_id": "job-123", "status": "queued"}
+
+
+def test_get_analysis_job_endpoint_returns_status(client: TestClient) -> None:
+    """GET /api/v1/jobs/{job_id} should return queued job status."""
+    fake_queue.job_result = None
+    app.dependency_overrides[get_queue] = override_get_queue
+
+    response = client.get("/api/v1/jobs/job-123")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "job_id": "job-123",
+        "status": "queued",
+        "result": None,
+        "error": None,
+    }
+
+
+def test_get_analysis_job_endpoint_returns_404_for_missing_job(
+    client: TestClient,
+) -> None:
+    """GET /api/v1/jobs/{job_id} should return 404 for unknown job."""
+    app.dependency_overrides[get_queue] = override_get_queue
+
+    response = client.get("/api/v1/jobs/missing-job")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Analysis job not found"}
