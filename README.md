@@ -444,6 +444,10 @@ alembic upgrade head
 используемые библиотеки, endpoints, схема БД, роль LLM, ограничения MVP
 и план второго спринта.
 
+Отчет по второму спринту находится в `reports/sprint2.md`. В нем
+описаны OpenAI-compatible LLM, Redis/RQ, async API, история анализов,
+Telegram-бот и demo-ready запуск через Docker Compose.
+
 ## Ограничения MVP
 
 - OpenAI-compatible клиент реализован, но для защиты и тестов по умолчанию
