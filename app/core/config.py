@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o-mini"
     redis_url: str = "redis://localhost:6379/0"
     analysis_queue_name: str = "email-analysis"
+    telegram_bot_token: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
