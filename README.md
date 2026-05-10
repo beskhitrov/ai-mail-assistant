@@ -358,6 +358,8 @@ make lint
 make typecheck
 make compose-config
 make compose-telegram-config
+make docs
+make docs-clean
 make check
 make up
 make up-telegram
@@ -366,6 +368,8 @@ make down
 
 `make check` запускает тесты, ruff, mypy и проверку Docker Compose
 конфигурации.
+
+`make docs` собирает Sphinx HTML-документацию в `docs/_build/html`.
 
 ## CI
 
@@ -377,7 +381,8 @@ CI выполняет:
 
 - установку зависимостей из `requirements.txt`;
 - `make check`;
-- `make alembic-sql`.
+- `make alembic-sql`;
+- `make docs`.
 
 ## Проверка проекта
 
