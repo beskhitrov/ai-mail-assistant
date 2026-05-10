@@ -80,3 +80,38 @@ class EmailAnalysisResponse(BaseModel):
 
     email: EmailCreate
     analysis: EmailAnalysisResult
+
+
+class EmailRead(BaseModel):
+    """Stored email returned by history endpoints."""
+
+    id: int
+    sender: str
+    recipient: str
+    subject: str
+    body: str
+    received_at: datetime | None = None
+    created_at: datetime
+
+
+class EmailAnalysisRead(BaseModel):
+    """Stored analysis returned by history endpoints."""
+
+    id: int
+    email_id: int
+    summary: str
+    category: EmailCategory
+    priority: Priority
+    tasks: list[TaskItem] = Field(default_factory=list)
+    entities: EmailEntities = Field(default_factory=EmailEntities)
+    draft_reply: str | None = None
+    created_at: datetime
+
+    model_config = ConfigDict(use_enum_values=True)
+
+
+class EmailHistoryItem(BaseModel):
+    """Stored email with optional analysis."""
+
+    email: EmailRead
+    analysis: EmailAnalysisRead | None = None
