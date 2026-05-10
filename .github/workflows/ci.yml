@@ -41,3 +41,8 @@ jobs:
         env:
           ALEMBIC: alembic
         run: make alembic-sql
+
+      - name: Build Sphinx documentation
+        env:
+          SPHINXBUILD: sphinx-build
+        run: make docs

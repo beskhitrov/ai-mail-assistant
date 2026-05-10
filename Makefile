@@ -4,9 +4,10 @@ PYTEST ?= .venv/bin/pytest
 RUFF ?= .venv/bin/ruff
 MYPY ?= .venv/bin/mypy
 ALEMBIC ?= .venv/bin/alembic
+SPHINXBUILD ?= .venv/bin/sphinx-build
 COMPOSE ?= docker compose
 
-.PHONY: install test lint typecheck alembic-sql compose-config compose-telegram-config check up up-telegram down clean
+.PHONY: install test lint typecheck alembic-sql compose-config compose-telegram-config docs docs-clean check up up-telegram down clean
 
 install:
 	$(PIP) install -r requirements.txt
@@ -28,6 +29,12 @@ compose-config:
 
 compose-telegram-config:
 	$(COMPOSE) --profile telegram config
+
+docs:
+	$(SPHINXBUILD) -b html docs docs/_build/html
+
+docs-clean:
+	rm -rf docs/_build
 
 check: test lint typecheck compose-config compose-telegram-config
 
