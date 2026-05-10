@@ -347,16 +347,30 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here docker compose --profile telegra
 Telegram-бот не дублирует анализ. Он использует `EmailAnalyzer`,
 `LLMClient` factory и `EmailRepository`.
 
-## Проверка feature14
+## Команды разработки
+
+Для удобства проверки и demo-запуска добавлен `Makefile`.
 
 ```bash
-pytest
-ruff check .
-mypy app tests alembic
-alembic upgrade head --sql
-python -c "from app.main import app; print(app.title)"
-docker compose config
-docker compose --profile telegram config
+make install
+make test
+make lint
+make typecheck
+make compose-config
+make compose-telegram-config
+make check
+make up
+make up-telegram
+make down
+```
+
+`make check` запускает тесты, ruff, mypy и проверку Docker Compose
+конфигурации.
+
+## Проверка проекта
+
+```bash
+make check
 ```
 
 Проверить fake-анализатор можно отдельной командой:
