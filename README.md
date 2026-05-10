@@ -384,6 +384,20 @@ CI выполняет:
 - `make alembic-sql`;
 - `make docs`.
 
+## GitHub Pages
+
+Документация публикуется отдельным workflow
+`.github/workflows/docs.yml`. Он собирает Sphinx HTML-документацию и
+публикует `docs/_build/html` в GitHub Pages.
+
+Workflow запускается:
+
+- на push в `main`;
+- вручную через `workflow_dispatch`.
+
+В настройках репозитория нужно выбрать GitHub Pages source:
+`GitHub Actions`.
+
 ## Проверка проекта
 
 ```bash
