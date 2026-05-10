@@ -86,17 +86,23 @@
 
 ## Текущий статус разработки
 
-Репозиторий находится на этапе `feature7`: Sprint 1 MVP собран в
-воспроизводимый локальный сервис с Docker Compose, PostgreSQL,
-миграциями Alembic, API анализа письма и отчетом для защиты.
+Репозиторий находится на этапе `feature14`: Sprint 2 demo-ready сервис
+собран в воспроизводимое Docker Compose окружение.
 
-На этом шаге реализованы основные требования первого спринта:
+На этом шаге реализованы основные требования второго спринта:
 
 - локальный запуск через Docker Compose;
 - `GET /health`;
 - `POST /api/v1/emails/analyze`;
-- анализ письма через fake LLM;
+- `POST /api/v1/emails/analyze-async`;
+- `GET /api/v1/jobs/{job_id}`;
+- `GET /api/v1/emails`;
+- `GET /api/v1/emails/{email_id}`;
+- анализ письма через fake LLM или OpenAI-compatible API;
 - сохранение письма и результата анализа в PostgreSQL;
+- Redis/RQ очередь и worker для фонового анализа;
+- Telegram-бот на aiogram;
+- история анализов;
 - тесты ключевого сценария;
 - отчет `reports/sprint1.md`.
 
@@ -104,11 +110,20 @@
 
 ## Локальный запуск через Docker Compose
 
-Запустите backend и PostgreSQL:
+По умолчанию Compose запускает backend, PostgreSQL, Redis и RQ worker в
+fake LLM-режиме:
 
 ```bash
 docker compose up --build
 ```
+
+Сервисы:
+
+- `backend` — FastAPI API;
+- `postgres` — база данных;
+- `redis` — брокер очереди;
+- `worker` — RQ worker для фонового анализа;
+- `telegram-bot` — Telegram-интерфейс, запускается отдельным profile.
 
 При старте backend применяет миграции:
 
@@ -141,6 +156,35 @@ docker compose down
 ```bash
 docker compose down -v
 ```
+
+Запустить Telegram-бота вместе с окружением:
+
+```bash
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here docker compose --profile telegram up --build
+```
+
+## Настройка LLM
+
+По умолчанию используется deterministic fake-клиент:
+
+```env
+LLM_PROVIDER=fake
+```
+
+Это удобно для тестов, локального запуска и защиты без внешних ключей.
+
+Для реального OpenAI-compatible API:
+
+```bash
+LLM_PROVIDER=openai \
+OPENAI_API_KEY=your_api_key_here \
+OPENAI_BASE_URL=https://api.openai.com/v1 \
+OPENAI_MODEL=gpt-4o-mini \
+docker compose up --build
+```
+
+`EmailAnalyzer` не зависит от конкретного провайдера. Клиент выбирается
+через общий `LLMClient` interface и фабрику.
 
 ## Локальный запуск без Docker
 
@@ -230,7 +274,80 @@ session, поэтому они не требуют живую базу.
 alembic upgrade head
 ```
 
-## Проверка feature7
+## Асинхронный анализ через очередь
+
+Поставить письмо в Redis/RQ очередь:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/emails/analyze-async \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sender": "teacher@example.com",
+    "recipient": "student@example.com",
+    "subject": "Срочно подготовить отчет",
+    "body": "Нужно подготовить отчет по проекту."
+  }'
+```
+
+Пример ответа:
+
+```json
+{"job_id":"some-rq-job-id","status":"queued"}
+```
+
+Проверить статус:
+
+```bash
+curl http://localhost:8000/api/v1/jobs/some-rq-job-id
+```
+
+Если задача завершена, `result` содержит тот же формат, что и
+`POST /api/v1/emails/analyze`.
+
+## История анализов
+
+Получить список сохраненных анализов:
+
+```bash
+curl "http://localhost:8000/api/v1/emails?limit=50&offset=0"
+```
+
+Получить один элемент истории:
+
+```bash
+curl http://localhost:8000/api/v1/emails/1
+```
+
+История хранится в существующих таблицах `emails` и `email_analyses`.
+Каждое новое письмо создает новую запись письма и связанную запись
+анализа.
+
+## Telegram-бот
+
+Бот принимает текст письма и возвращает:
+
+- summary;
+- category;
+- priority;
+- tasks;
+- draft reply.
+
+Локальный запуск:
+
+```bash
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here python -m app.bot.main
+```
+
+Через Docker Compose:
+
+```bash
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here docker compose --profile telegram up --build
+```
+
+Telegram-бот не дублирует анализ. Он использует `EmailAnalyzer`,
+`LLMClient` factory и `EmailRepository`.
+
+## Проверка feature14
 
 ```bash
 pytest
@@ -239,6 +356,7 @@ mypy app tests alembic
 alembic upgrade head --sql
 python -c "from app.main import app; print(app.title)"
 docker compose config
+docker compose --profile telegram config
 ```
 
 Проверить fake-анализатор можно отдельной командой:
@@ -249,8 +367,7 @@ python -c "from app.schemas import EmailCreate; from app.services import EmailAn
 
 ## Как работает fake LLM
 
-На этапе `feature3` внешний LLM API еще не вызывается. Вместо него
-используется `FakeLLMClient`, который по простым ключевым словам
+Для локального режима используется `FakeLLMClient`, который по простым ключевым словам
 детерминированно возвращает:
 
 - `summary`;
@@ -261,8 +378,9 @@ python -c "from app.schemas import EmailCreate; from app.services import EmailAn
 - `draft_reply`.
 
 Это позволяет тестировать бизнес-логику без API-ключей, сети и
-нестабильных внешних ответов. Реальный LLM-клиент можно будет добавить
-позже, не меняя сервис `EmailAnalyzer`.
+нестабильных внешних ответов. Реальный OpenAI-compatible клиент
+подключается через `LLM_PROVIDER=openai`, не меняя сервис
+`EmailAnalyzer`.
 
 ## Модели базы данных
 
@@ -310,6 +428,11 @@ alembic upgrade head
 - успешный `POST /api/v1/emails/analyze`;
 - `422` для невалидного API payload;
 - `500` при ошибке сохранения анализа.
+- OpenAI-compatible LLM client через `httpx.MockTransport`;
+- Redis/RQ queue helpers;
+- async API endpoints;
+- history endpoints;
+- Telegram bot service и форматирование ответа.
 
 Тесты не требуют реального LLM API, Telegram API или живой PostgreSQL.
 Для API-тестов используется dependency override и fake DB session.
@@ -323,7 +446,11 @@ alembic upgrade head
 
 ## Ограничения MVP
 
-- используется `FakeLLMClient`, а не реальный внешний LLM API;
-- Telegram-бот будет добавлен во втором спринте;
+- OpenAI-compatible клиент реализован, но для защиты и тестов по умолчанию
+  используется `FakeLLMClient`;
 - нет авторизации и пользовательского кабинета;
-- нет фоновых очередей и Redis, потому что для Sprint 1 они не нужны.
+- Telegram-бот поддерживает простой сценарий: пользователь отправляет
+  текст письма и получает результат анализа;
+- связь `Email -> EmailAnalysis` пока один к одному;
+- нет отдельного UI, демонстрация идет через HTTP API, Docker Compose и
+  Telegram.

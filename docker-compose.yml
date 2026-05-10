@@ -3,12 +3,15 @@ services:
     build: .
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     environment:
-      APP_ENV: local
-      APP_NAME: AI Mail Assistant
-      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/ai_mail_assistant
-      LLM_PROVIDER: fake
-      REDIS_URL: redis://redis:6379/0
-      ANALYSIS_QUEUE_NAME: email-analysis
+      APP_ENV: ${APP_ENV:-local}
+      APP_NAME: ${APP_NAME:-AI Mail Assistant}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://postgres:postgres@postgres:5432/ai_mail_assistant}
+      LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ANALYSIS_QUEUE_NAME: ${ANALYSIS_QUEUE_NAME:-email-analysis}
     ports:
       - "8000:8000"
     depends_on:
@@ -19,14 +22,17 @@ services:
 
   worker:
     build: .
-    command: rq worker email-analysis --url redis://redis:6379/0
+    command: rq worker ${ANALYSIS_QUEUE_NAME:-email-analysis} --url ${REDIS_URL:-redis://redis:6379/0}
     environment:
-      APP_ENV: local
-      APP_NAME: AI Mail Assistant
-      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/ai_mail_assistant
-      LLM_PROVIDER: fake
-      REDIS_URL: redis://redis:6379/0
-      ANALYSIS_QUEUE_NAME: email-analysis
+      APP_ENV: ${APP_ENV:-local}
+      APP_NAME: ${APP_NAME:-AI Mail Assistant}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://postgres:postgres@postgres:5432/ai_mail_assistant}
+      LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ANALYSIS_QUEUE_NAME: ${ANALYSIS_QUEUE_NAME:-email-analysis}
     depends_on:
       postgres:
         condition: service_healthy
@@ -39,10 +45,13 @@ services:
     profiles:
       - telegram
     environment:
-      APP_ENV: local
-      APP_NAME: AI Mail Assistant
-      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/ai_mail_assistant
-      LLM_PROVIDER: fake
+      APP_ENV: ${APP_ENV:-local}
+      APP_NAME: ${APP_NAME:-AI Mail Assistant}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://postgres:postgres@postgres:5432/ai_mail_assistant}
+      LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
     depends_on:
       postgres:
