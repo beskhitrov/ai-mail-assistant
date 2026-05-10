@@ -6,10 +6,31 @@ services:
       APP_ENV: local
       APP_NAME: AI Mail Assistant
       DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/ai_mail_assistant
+      LLM_PROVIDER: fake
+      REDIS_URL: redis://redis:6379/0
+      ANALYSIS_QUEUE_NAME: email-analysis
     ports:
       - "8000:8000"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: rq worker email-analysis --url redis://redis:6379/0
+    environment:
+      APP_ENV: local
+      APP_NAME: AI Mail Assistant
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/ai_mail_assistant
+      LLM_PROVIDER: fake
+      REDIS_URL: redis://redis:6379/0
+      ANALYSIS_QUEUE_NAME: email-analysis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   postgres:
@@ -24,6 +45,16 @@ services:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d ai_mail_assistant"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
