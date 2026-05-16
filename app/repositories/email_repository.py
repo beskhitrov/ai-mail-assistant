@@ -2,7 +2,9 @@
 
 from typing import Any, Protocol
 
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import joinedload
 
 from app.db.models import Email, EmailAnalysis
 from app.schemas.email import EmailAnalysisResult, EmailCreate
@@ -25,6 +27,9 @@ class DatabaseSession(Protocol):
 
     def refresh(self, instance: Any) -> None:
         """Refresh ORM instance from database state."""
+
+    def execute(self, statement: Any) -> Any:
+        """Execute SQLAlchemy statement."""
 
 
 class RepositoryError(Exception):
@@ -75,3 +80,35 @@ class EmailRepository:
             raise RepositoryError("Could not save email analysis") from exc
 
         return email_model, analysis_model
+
+    def list_emails_with_analysis(self, limit: int, offset: int) -> list[Email]:
+        """Return stored emails with analysis ordered by newest first."""
+        statement = (
+            select(Email)
+            .options(joinedload(Email.analysis))
+            .order_by(Email.created_at.desc(), Email.id.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+
+        try:
+            result = self._session.execute(statement)
+            return list(result.scalars().all())
+        except SQLAlchemyError as exc:
+            raise RepositoryError("Could not list email analyses") from exc
+
+    def get_email_with_analysis(self, email_id: int) -> Email | None:
+        """Return one stored email with analysis by id."""
+        statement = (
+            select(Email)
+            .options(joinedload(Email.analysis))
+            .where(Email.id == email_id)
+        )
+
+        try:
+            result = self._session.execute(statement)
+            email = result.scalars().first()
+        except SQLAlchemyError as exc:
+            raise RepositoryError("Could not get email analysis") from exc
+
+        return email

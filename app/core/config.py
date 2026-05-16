@@ -1,6 +1,7 @@
 """Application configuration loaded from environment variables."""
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -13,6 +14,13 @@ class Settings(BaseSettings):
     database_url: str = (
         "postgresql+psycopg2://postgres:postgres@localhost:5432/ai_mail_assistant"
     )
+    llm_provider: Literal["fake", "openai"] = "fake"
+    openai_api_key: str | None = None
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_model: str = "gpt-4o-mini"
+    redis_url: str = "redis://localhost:6379/0"
+    analysis_queue_name: str = "email-analysis"
+    telegram_bot_token: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
